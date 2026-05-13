@@ -18,8 +18,8 @@
         io-channels = <&adc0 5>, <&adc0 6>;
     };
     motors {
-        compatible = "pwm-leds";
-        // status= "okay";
+        // compatible = "pwm-leds";
+        status= "okay";
         pinctrl-0 = <&mcpwm0_default>;
         pinctrl-names = "default";
 

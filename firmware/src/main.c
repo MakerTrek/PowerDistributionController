@@ -63,9 +63,6 @@ static struct k_poll_event change_led_events[1] = {
 };
 
 
-
-
-
 void tx_irq_callback(const struct device *dev, int error, void *arg)
 {
 	char *sender = (char *)arg;
@@ -211,11 +208,14 @@ void state_change_callback(const struct device *dev, enum can_state state,
 
 int main(void)
 {
+	for(;;){
+		printk("Got here\n");
+		k_sleep(K_MSEC(250U));
+	}
 	int err;
 	uint32_t count = 0;
 
 	k_sleep(K_SECONDS(5U));
-	printk("Got here\n");
 
 	lift_init();
 	joystick_init();
@@ -229,7 +229,8 @@ int main(void)
 		printk("Joystick position: x = %d mV, y = %d mV\n", x, y);
 
 		static int state = 0;
-		switch (state) {
+		switch (state)
+		{
 		case 0:
 			lift_rise();
 			break;

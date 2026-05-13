@@ -79,5 +79,3 @@ int lift_stop()
 	LOG_INF("Lift stopped\n");
 	return 0;
 }
-
-

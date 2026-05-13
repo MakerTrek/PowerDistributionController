@@ -11,15 +11,13 @@ LOG_MODULE_REGISTER(joystick, LOG_LEVEL_INF);
 
 
 /* Data of ADC io-channels specified in devicetree. */
-static const struct adc_dt_spec adc_channels[] = {
-	DT_FOREACH_PROP_ELEM(DT_PATH(zephyr_user), io_channels, DT_SPEC_AND_COMMA_FOR_INPUTS)
-};
 // static const struct adc_dt_spec adc_channels[] = {
-//     ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), 0),
-//     ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), 1),
+// 	DT_FOREACH_PROP_ELEM(DT_PATH(zephyr_user), io_channels, DT_SPEC_AND_COMMA_FOR_INPUTS)
 // };
-
-
+static const struct adc_dt_spec adc_channels[] = {
+    ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), 0),
+    ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), 1),
+};
 
 
 uint32_t buf = 0;

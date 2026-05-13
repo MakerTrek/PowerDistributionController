@@ -3,8 +3,10 @@
 cmake_minimum_required(VERSION 3.20.0)
 
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
-project(adc_stream)
 
-target_sources(app PRIVATE src/main.c)
-target_sources(app PRIVATE src/joystick.c)
-target_sources(app PRIVATE src/lift.c)
+project(firmware)
+
+# Collect all .src files recursively
+file(GLOB_RECURSE app_sources src/*)
+
+target_sources(app PRIVATE ${app_sources})
