@@ -1,6 +1,7 @@
 #include "joystick.h"
 #include <zephyr/drivers/adc.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/input/input.h>
 
 LOG_MODULE_REGISTER(joystick, LOG_LEVEL_INF);
 
@@ -30,9 +31,36 @@ struct adc_sequence sequence = {
 #endif
 };
 
-// returns 0 on success, 
-int joystick_init()
+void (*_joystick_pressed_cb)();
+void (*_joystick_released_cb)();
+
+static void joystick_input_keys_cb(struct input_event *evt, void *user_data)
 {
+    ARG_UNUSED(user_data);
+
+    if (evt->code == INPUT_KEY_ENTER) {
+        if (evt->value)
+        {
+            _joystick_pressed_cb();
+        }
+        else
+        {
+            _joystick_released_cb();
+        }
+    }
+}
+
+INPUT_CALLBACK_DEFINE(NULL, joystick_input_keys_cb, NULL);
+
+
+
+
+// returns 0 on success, 
+int joystick_init(void (*joystick_pressed_cb)(void), void (*joystick_released_cb)(void))
+{
+    _joystick_pressed_cb = joystick_pressed_cb;
+    _joystick_released_cb = joystick_released_cb;
+
     int err = 0;
     
 	for (size_t i = 0U; i < ARRAY_SIZE(adc_channels); i++)

@@ -7,6 +7,8 @@
         motor = &motor0;
 		motor-output-a = &motor_output_a;
 		motor-output-b = &motor_output_b;
+		motor-en-a = &motor_en_a;
+		motor-en-b = &motor_en_b;
     };
     
     chosen {
@@ -17,6 +19,8 @@
     zephyr,user {
         io-channels = <&adc0 5>, <&adc0 6>;
     };
+
+    // TODO: motors (pwm attempt) isn't working properly.
     motors {
         // compatible = "pwm-leds";
         status= "okay";
@@ -29,16 +33,39 @@
         };
     };
 
-    leds {
+    h-bridge {
 		compatible = "gpio-leds";
 
+        // GP15 -> purple wire -> R_{PWM}
 		motor_output_a: motor_output_a {
-			gpios = <&gpio0 18 GPIO_ACTIVE_HIGH>;
-		};
-        motor_output_b: motor_output_b {
 			gpios = <&gpio0 15 GPIO_ACTIVE_HIGH>;
 		};
+
+        // GP18 -> brown wire -> L_{PWM}
+        motor_output_b: motor_output_b {
+			gpios = <&gpio0 18 GPIO_ACTIVE_HIGH>;
+		};
+
+        // GP8 -> green wire -> R_{EN}
+		motor_en_a: motor_en_a {
+			gpios = <&gpio0 8 GPIO_ACTIVE_HIGH>;
+		};
+
+        // GP14 -> blue wire -> L_{EN}
+        motor_en_b: motor_en_b {
+			gpios = <&gpio0 14 GPIO_ACTIVE_HIGH>;
+		};
 	};
+
+    buttons {
+        compatible = "gpio-keys";
+
+        trigger_button: trigger_button {
+            gpios = <&gpio0 7 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+            label = "Trigger";
+            zephyr,code = <INPUT_KEY_ENTER>;
+        };
+    };
 };
 
 &pinctrl {
@@ -71,6 +98,22 @@
     #address-cells = <1>;
 	#size-cells = <0>;
     compatible = "espressif,esp32-adc";
+    channel@3 {
+        reg = <3>;
+        zephyr,gain = "ADC_GAIN_1_4"; 
+        zephyr,reference = "ADC_REF_INTERNAL";
+        zephyr,vref-mv = <1100>;
+        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+        zephyr,resolution = <12>;
+	};
+    channel@4 {
+        reg = <4>;
+        zephyr,gain = "ADC_GAIN_1_4";
+        zephyr,reference = "ADC_REF_INTERNAL";
+        zephyr,vref-mv = <1100>;
+        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+        zephyr,resolution = <12>;
+	};
     channel@5 {
         reg = <5>;
         zephyr,gain = "ADC_GAIN_1_4"; 
@@ -97,7 +140,7 @@
 };
 
 &mcpwm0 {
-    status = "okay";
+    // status = "okay";
     #address-cells = <1>;
     #size-cells = <0>;
     #pinctrl-names = "default";
@@ -110,3 +153,4 @@
 &gpio0 {
 	status = "okay";
 };
+

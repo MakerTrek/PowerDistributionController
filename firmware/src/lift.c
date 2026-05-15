@@ -5,33 +5,29 @@ LOG_MODULE_REGISTER(lift, LOG_LEVEL_INF);
 
 static const struct gpio_dt_spec motor_output_a = GPIO_DT_SPEC_GET(DT_ALIAS(motor_output_a), gpios);
 static const struct gpio_dt_spec motor_output_b = GPIO_DT_SPEC_GET(DT_ALIAS(motor_output_b), gpios);
+static const struct gpio_dt_spec motor_en_a = GPIO_DT_SPEC_GET(DT_ALIAS(motor_en_a), gpios);
+static const struct gpio_dt_spec motor_en_b = GPIO_DT_SPEC_GET(DT_ALIAS(motor_en_b), gpios);
+
+int _gpio_setup(const struct gpio_dt_spec * gpio, gpio_flags_t extra_fags)
+{
+	int ret;
+	ret = gpio_is_ready_dt(gpio);
+	if (ret < 0)
+	{
+		return ret;
+	}
+	
+	gpio_pin_configure_dt(gpio, extra_fags);
+	return 0; // SUCCess
+}
 
 int lift_init()
 {
 	int ret;
-    ret = gpio_is_ready_dt(&motor_output_a);
-	if (ret < 0)
-    {
-		return ret;
-	}
-
-    ret = gpio_is_ready_dt(&motor_output_b);
-	if (!ret < 0)
-    {
-		return ret;
-	}
-
-	ret = gpio_pin_configure_dt(&motor_output_a, GPIO_OUTPUT_INACTIVE);
-	if (ret < 0)
-    {
-		return ret;
-	}
-
-	ret = gpio_pin_configure_dt(&motor_output_b, GPIO_OUTPUT_INACTIVE);
-	if (ret < 0)
-    {
-		return ret;
-	}
+	_gpio_setup(&motor_output_a, GPIO_OUTPUT_INACTIVE);
+	_gpio_setup(&motor_output_b, GPIO_OUTPUT_INACTIVE);
+	_gpio_setup(&motor_en_a, GPIO_OUTPUT_ACTIVE);
+	_gpio_setup(&motor_en_b, GPIO_OUTPUT_ACTIVE);
     return 0;
 }
 

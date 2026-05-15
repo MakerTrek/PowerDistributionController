@@ -18,6 +18,7 @@
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/adc.h>
 #include <zephyr/drivers/pwm.h>
+// #include <zephyr/input/input.h>
 
 #include "joystick.h"
 #include "lift.h"
@@ -37,8 +38,8 @@
 #define RESET_LED 0
 #define SLEEP_TIME K_MSEC(250)
 
-K_THREAD_STACK_DEFINE(rx_thread_stack, RX_THREAD_STACK_SIZE);
-K_THREAD_STACK_DEFINE(poll_state_stack, STATE_POLL_THREAD_STACK_SIZE);
+// K_THREAD_STACK_DEFINE(rx_thread_stack, RX_THREAD_STACK_SIZE);
+// K_THREAD_STACK_DEFINE(poll_state_stack, STATE_POLL_THREAD_STACK_SIZE);
 
 const struct device *const can_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_canbus));
 
@@ -91,7 +92,8 @@ void rx_thread(void *arg1, void *arg2, void *arg3)
 	filter_id = can_add_rx_filter_msgq(can_dev, &counter_msgq, &filter);
 	printf("Counter filter id: %d\n", filter_id);
 
-	while (1) {
+	while (1)
+	{
 		k_msgq_get(&counter_msgq, &frame, K_FOREVER);
 
 		if (IS_ENABLED(CONFIG_CAN_ACCEPT_RTR) && (frame.flags & CAN_FRAME_RTR) != 0U) {
@@ -103,34 +105,35 @@ void rx_thread(void *arg1, void *arg2, void *arg3)
 			continue;
 		}
 
-		printf("Counter received: %u\n",
-		       sys_be16_to_cpu(UNALIGNED_GET((uint16_t *)&frame.data)));
+		printf("Counter received: %u\n", sys_be16_to_cpu(UNALIGNED_GET((uint16_t *)&frame.data)));
 	}
 }
 
-// void change_led_work_handler(struct k_work *work)
-// {
-// 	struct can_frame frame;
-// 	int ret;
+/*
+void change_led_work_handler(struct k_work *work)
+{
+	struct can_frame frame;
+	int ret;
 
-// 	while (k_msgq_get(&change_led_msgq, &frame, K_NO_WAIT) == 0) {
-// 		if (IS_ENABLED(CONFIG_CAN_ACCEPT_RTR) && (frame.flags & CAN_FRAME_RTR) != 0U) {
-// 			continue;
-// 		}
+	while (k_msgq_get(&change_led_msgq, &frame, K_NO_WAIT) == 0) {
+		if (IS_ENABLED(CONFIG_CAN_ACCEPT_RTR) && (frame.flags & CAN_FRAME_RTR) != 0U) {
+			continue;
+		}
 
-// 		if (led.port == NULL) {
-// 			printf("LED %s\n", frame.data[0] == SET_LED ? "ON" : "OFF");
-// 		} else {
-// 			gpio_pin_set(led.port, led.pin, frame.data[0] == SET_LED ? 1 : 0);
-// 		}
-// 	}
+		if (led.port == NULL) {
+			printf("LED %s\n", frame.data[0] == SET_LED ? "ON" : "OFF");
+		} else {
+			gpio_pin_set(led.port, led.pin, frame.data[0] == SET_LED ? 1 : 0);
+		}
+	}
 
-// 	ret = k_work_poll_submit(&change_led_work, change_led_events,
-// 				 ARRAY_SIZE(change_led_events), K_FOREVER);
-// 	if (ret != 0) {
-// 		printf("Failed to resubmit msgq polling: %d", ret);
-// 	}
-// }
+	ret = k_work_poll_submit(&change_led_work, change_led_events,
+				 ARRAY_SIZE(change_led_events), K_FOREVER);
+	if (ret != 0) {
+		printf("Failed to resubmit msgq polling: %d", ret);
+	}
+}
+*/
 
 char *state_to_str(enum can_state state)
 {
@@ -193,9 +196,11 @@ void state_change_work_handler(struct k_work *work)
 		current_err_cnt.rx_err_cnt, current_err_cnt.tx_err_cnt);
 }
 
-void state_change_callback(const struct device *dev, enum can_state state,
-			   struct can_bus_err_cnt err_cnt, void *user_data)
-{
+void state_change_callback(
+	const struct device *dev,
+	enum can_state state,
+	struct can_bus_err_cnt err_cnt,
+	void *user_data) {
 	struct k_work *work = (struct k_work *)user_data;
 
 	ARG_UNUSED(dev);
@@ -206,167 +211,174 @@ void state_change_callback(const struct device *dev, enum can_state state,
 }
 
 
+
+void joystick_pressed_cb()
+{
+	static bool state = 0;
+	state = !state;
+	state ? lift_rise() : lift_lower();
+}
+
+void joystick_released_cb()
+{
+	lift_stop();
+}
+
 int main(void)
 {
-	for(;;){
-		printk("Got here\n");
-		k_sleep(K_MSEC(250U));
-	}
-	int err;
+	int err, ret;
 	uint32_t count = 0;
 
 	k_sleep(K_SECONDS(5U));
 
 	lift_init();
-	joystick_init();
+	joystick_init(joystick_pressed_cb, joystick_released_cb);
+
+	if (!device_is_ready(can_dev)) {
+		printf("CAN: Device %s not ready.\n", can_dev->name);
+		return 0;
+	}
+
+#ifdef CONFIG_LOOPBACK_MODE
+	ret = can_set_mode(can_dev, CAN_MODE_LOOPBACK);
+	if (ret != 0) {
+		printf("Error setting CAN mode [%d]", ret);
+		return 0;
+	}
+#endif
+	ret = can_start(can_dev);
+	if (ret != 0) {
+		printf("Error starting CAN controller [%d]", ret);
+		return 0;
+	}
+
 
 	while(1) {
 		
 		int16_t x = 0, y = 0;
-		
 		joystick_get_position(&x, &y);
-
 		printk("Joystick position: x = %d mV, y = %d mV\n", x, y);
 
-		static int state = 0;
-		switch (state)
-		{
-		case 0:
-			lift_rise();
-			break;
-		case 1:
-			lift_lower();
-			break;
-		case 2:
-			lift_stop();
-			break;
-		}
-		printf("state: %d\n", state);
-		if (state >= 2) state = 0;
-		else state++;
-
-		k_sleep(K_MSEC(250U));
+		k_sleep(K_MSEC(500U));
 	}
 	return 0;
 }
 
 
-// int main1(void)
-// {
-// 	k_sleep(K_SECONDS(10));
-// 	const struct can_filter change_led_filter = {
-// 		.flags = 0U,
-// 		.id = LED_MSG_ID,
-// 		.mask = CAN_STD_ID_MASK
-// 	};
-// 	struct can_frame change_led_frame = {
-// 		.flags = 0,
-// 		.id = LED_MSG_ID,
-// 		.dlc = 1
-// 	};
-// 	struct can_frame counter_frame = {
-// 		.flags = CAN_FRAME_IDE,
-// 		.id = COUNTER_MSG_ID,
-// 		.dlc = 2
-// 	};
-// 	uint8_t toggle = 1;
-// 	uint16_t counter = 0;
-// 	k_tid_t rx_tid, get_state_tid;
-// 	int ret;
+/*
+int main1(void)
+{
+	const struct can_filter change_led_filter = {
+		.flags = 0U,
+		.id = LED_MSG_ID,
+		.mask = CAN_STD_ID_MASK
+	};
+	struct can_frame change_led_frame = {
+		.flags = 0,
+		.id = LED_MSG_ID,
+		.dlc = 1
+	};
+	struct can_frame counter_frame = {
+		.flags = CAN_FRAME_IDE,
+		.id = COUNTER_MSG_ID,
+		.dlc = 2
+	};
+	uint8_t toggle = 1;
+	uint16_t counter = 0;
+	k_tid_t rx_tid, get_state_tid;
+	int ret;
 
-// 	if (!device_is_ready(can_dev)) {
-// 		printf("CAN: Device %s not ready.\n", can_dev->name);
-// 		return 0;
-// 	}
+	if (!device_is_ready(can_dev)) {
+		printf("CAN: Device %s not ready.\n", can_dev->name);
+		return 0;
+	}
 
-// #ifdef CONFIG_LOOPBACK_MODE
-// 	ret = can_set_mode(can_dev, CAN_MODE_LOOPBACK);
-// 	if (ret != 0) {
-// 		printf("Error setting CAN mode [%d]", ret);
-// 		return 0;
-// 	}
-// #endif
-// 	ret = can_start(can_dev);
-// 	if (ret != 0) {
-// 		printf("Error starting CAN controller [%d]", ret);
-// 		return 0;
-// 	}
+#ifdef CONFIG_LOOPBACK_MODE
+	ret = can_set_mode(can_dev, CAN_MODE_LOOPBACK);
+	if (ret != 0) {
+		printf("Error setting CAN mode [%d]", ret);
+		return 0;
+	}
+#endif
+	ret = can_start(can_dev);
+	if (ret != 0) {
+		printf("Error starting CAN controller [%d]", ret);
+		return 0;
+	}
 
-// 	if (led.port != NULL) {
-// 		if (!gpio_is_ready_dt(&led)) {
-// 			printf("LED: Device %s not ready.\n",
-// 			       led.port->name);
-// 			return 0;
-// 		}
-// 		ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_HIGH);
-// 		if (ret < 0) {
-// 			printf("Error setting LED pin to output mode [%d]",
-// 			       ret);
-// 			// led.port = NULL;
-// 		}
-// 	}
+	if (led.port != NULL) {
+		if (!gpio_is_ready_dt(&led)) {
+			printf("LED: Device %s not ready.\n",
+			       led.port->name);
+			return 0;
+		}
+		ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_HIGH);
+		if (ret < 0) {
+			printf("Error setting LED pin to output mode [%d]",
+			       ret);
+			// led.port = NULL;
+		}
+	}
 
-// 	k_work_init(&state_change_work, state_change_work_handler);
-// 	k_work_poll_init(&change_led_work, change_led_work_handler);
+	k_work_init(&state_change_work, state_change_work_handler);
+	k_work_poll_init(&change_led_work, change_led_work_handler);
 
-// 	can_set_bitrate(can_dev, 500000);
+	can_set_bitrate(can_dev, 500000);
 
-// 	ret = can_add_rx_filter_msgq(can_dev, &change_led_msgq, &change_led_filter);
-// 	if (ret == -ENOSPC) {
-// 		printf("Error, no filter available!\n");
-// 		return 0;
-// 	}
+	ret = can_add_rx_filter_msgq(can_dev, &change_led_msgq, &change_led_filter);
+	if (ret == -ENOSPC) {
+		printf("Error, no filter available!\n");
+		return 0;
+	}
 
-// 	printf("Change LED filter ID: %d\n", ret);
+	printf("Change LED filter ID: %d\n", ret);
 
-// 	ret = k_work_poll_submit(&change_led_work, change_led_events,
-// 				 ARRAY_SIZE(change_led_events), K_FOREVER);
-// 	if (ret != 0) {
-// 		printf("Failed to submit msgq polling: %d", ret);
-// 		return 0;
-// 	}
+	ret = k_work_poll_submit(&change_led_work, change_led_events,
+				 ARRAY_SIZE(change_led_events), K_FOREVER);
+	if (ret != 0) {
+		printf("Failed to submit msgq polling: %d", ret);
+		return 0;
+	}
 
-// 	rx_tid = k_thread_create(&rx_thread_data, rx_thread_stack,
-// 				 K_THREAD_STACK_SIZEOF(rx_thread_stack),
-// 				 rx_thread, NULL, NULL, NULL,
-// 				 RX_THREAD_PRIORITY, 0, K_NO_WAIT);
-// 	if (!rx_tid) {
-// 		printf("ERROR spawning rx thread\n");
-// 	}
+	rx_tid = k_thread_create(&rx_thread_data, rx_thread_stack,
+				 K_THREAD_STACK_SIZEOF(rx_thread_stack),
+				 rx_thread, NULL, NULL, NULL,
+				 RX_THREAD_PRIORITY, 0, K_NO_WAIT);
+	if (!rx_tid) {
+		printf("ERROR spawning rx thread\n");
+	}
 
-// 	get_state_tid = k_thread_create(&poll_state_thread_data,
-// 					poll_state_stack,
-// 					K_THREAD_STACK_SIZEOF(poll_state_stack),
-// 					poll_state_thread, NULL, NULL, NULL,
-// 					STATE_POLL_THREAD_PRIORITY, 0,
-// 					K_NO_WAIT);
-// 	if (!get_state_tid) {
-// 		printf("ERROR spawning poll_state_thread\n");
-// 	}
+	get_state_tid = k_thread_create(&poll_state_thread_data,
+					poll_state_stack,
+					K_THREAD_STACK_SIZEOF(poll_state_stack),
+					poll_state_thread, NULL, NULL, NULL,
+					STATE_POLL_THREAD_PRIORITY, 0,
+					K_NO_WAIT);
+	if (!get_state_tid) {
+		printf("ERROR spawning poll_state_thread\n");
+	}
 
-// 	can_set_state_change_callback(can_dev, state_change_callback, &state_change_work);
+	can_set_state_change_callback(can_dev, state_change_callback, &state_change_work);
 
-// 	printf("Finished init.\n");
+	printf("Finished init.\n");
 
-// 	while (1) {
-// 		change_led_frame.data[0] = toggle++ & 0x01 ? SET_LED : RESET_LED;
-// 		/* This sending call is none blocking. */
-// 		can_send(can_dev, &change_led_frame, K_FOREVER,
-// 			 tx_irq_callback,
-// 			 "LED change");
-// 		k_sleep(SLEEP_TIME);
+	while (1) {
+		change_led_frame.data[0] = toggle++ & 0x01 ? SET_LED : RESET_LED;
+		// This sending call is none blocking. 
+		can_send(can_dev, &change_led_frame, K_FOREVER,
+			 tx_irq_callback,
+			 "LED change");
+		k_sleep(SLEEP_TIME);
 
-// 		UNALIGNED_PUT(sys_cpu_to_be16(counter),
-// 			      (uint16_t *)&counter_frame.data[0]);
-// 		counter++;
-// 		/* This sending call is blocking until the message is sent. */
-// 		can_send(can_dev, &counter_frame, K_MSEC(100), NULL, NULL);
-// 		k_sleep(SLEEP_TIME);
-// 	}
-// }
-
-
-
+		UNALIGNED_PUT(sys_cpu_to_be16(counter),
+			      (uint16_t *)&counter_frame.data[0]);
+		counter++;
+		// This sending call is blocking until the message is sent.
+		can_send(can_dev, &counter_frame, K_MSEC(100), NULL, NULL);
+		k_sleep(SLEEP_TIME);
+	}
+}
+*/
 // #define MIN_PERIOD PWM_USEC(1U)
 // #define MAX_PERIOD PWM_SEC(1U)
 
