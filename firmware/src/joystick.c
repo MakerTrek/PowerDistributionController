@@ -12,6 +12,8 @@ LOG_MODULE_REGISTER(joystick, LOG_LEVEL_INF);
 
 
 /* Data of ADC io-channels specified in devicetree. */
+// TODO: this FOREACH doesn't wokr as expected for some reason.
+// not nessesary for this codebase since the joystick is expected to have exactly 2 axis.
 // static const struct adc_dt_spec adc_channels[] = {
 // 	DT_FOREACH_PROP_ELEM(DT_PATH(zephyr_user), io_channels, DT_SPEC_AND_COMMA_FOR_INPUTS)
 // };
@@ -19,7 +21,6 @@ static const struct adc_dt_spec adc_channels[] = {
     ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), 0),
     ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), 1),
 };
-
 
 uint32_t buf = 0;
 struct adc_sequence sequence = {
@@ -34,6 +35,7 @@ struct adc_sequence sequence = {
 void (*_joystick_pressed_cb)();
 void (*_joystick_released_cb)();
 
+// 
 static void joystick_input_keys_cb(struct input_event *evt, void *user_data)
 {
     ARG_UNUSED(user_data);
@@ -51,9 +53,6 @@ static void joystick_input_keys_cb(struct input_event *evt, void *user_data)
 }
 
 INPUT_CALLBACK_DEFINE(NULL, joystick_input_keys_cb, NULL);
-
-
-
 
 // returns 0 on success, 
 int joystick_init(void (*joystick_pressed_cb)(void), void (*joystick_released_cb)(void))
